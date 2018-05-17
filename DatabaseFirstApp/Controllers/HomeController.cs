@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web;
 using System.Web.Mvc;
+using System.Web.Security;
 
 namespace DatabaseFirstApp.Controllers
 {
@@ -15,6 +16,7 @@ namespace DatabaseFirstApp.Controllers
             return View(db.Registrations.ToList());
         }
 
+        [HttpGet]
         public ActionResult Register()
         {
             return View();
@@ -32,6 +34,8 @@ namespace DatabaseFirstApp.Controllers
             }
             return View();
         }
+
+        [HttpGet]
         public ActionResult Login()
         {
             return View();
@@ -39,35 +43,65 @@ namespace DatabaseFirstApp.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Login(Registration reg)
+        public ActionResult Login(Registration user)
         {
             if (ModelState.IsValid)
             {
-                var details = (from userlist in db.Registrations
-                               where userlist.UserName == reg.UserName && userlist.Password == reg.Password
-                               select new
-                               {
-                                   userlist.UserId,
-                                   userlist.UserName
-                               }).ToList();
-                if (details.FirstOrDefault() != null)
+                if (ValidateUser (user.UserName, user.Password))
                 {
-                    Session["UserId"] = details.FirstOrDefault().UserId;
-                    Session["Username"] = details.FirstOrDefault().UserName;
-                    return RedirectToAction("Welcome", "Home");
-
+                    FormsAuthentication.SetAuthCookie(user.UserName, false);
+                    return RedirectToAction("UserCP", "Home");
                 }
+                else
+                {
+                    ModelState.AddModelError("", "");
+                }
+            }
+            return View();
+        }
+
+        private bool ValidateUser(string userName, string password)
+        {
+            bool isValid = false;
+
+            using (var db = new DatabaseFirstDbEntities())
+            {
+                var user = db.Registrations.FirstOrDefault(u => u.UserName == userName);
+                if (user != null)
+                {
+                    if (user.Password == password)
+                    {
+                        Session["UserId"] = user.UserId;
+                        Session["FirstName"] = user.FirstName;
+                        Session["LastName"] = user.LastName;
+                        Session["UserName"] = user.UserName;
+                        Session["Email"] = user.Email;
+                        Session["Mobile"] = user.Mobile;
+
+                        isValid = true;
+                    }
+                }
+            }
+            return isValid;
+        }
+
+        public ActionResult UserCP()
+        {
+            if (Session["UserId"] == null)
+            {
+                return RedirectToAction("Index", "Home");
             }
             else
             {
-                ModelState.AddModelError("", "Invalid Credentials");
+                return View();
             }
-            return View(reg);
         }
 
-        public ActionResult Welcome()
+        public ActionResult LogOut()
         {
-            return View();
+            FormsAuthentication.SignOut();
+            Session.Abandon(); // it will clear the session at the end of request
+            return RedirectToAction("index", "Home");
         }
 
         public ActionResult About()
